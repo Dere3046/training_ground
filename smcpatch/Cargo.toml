@@ -1,0 +1,9 @@
+[package]
+name = "smcpatch"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-only"
+
+[dependencies]
+android-bootimg = { git = "https://github.com/5ec1cff/android_bootimg", rev = "153423f6310fd4ae187e32da48e97b9fc613b783" }
+anyhow = "1"

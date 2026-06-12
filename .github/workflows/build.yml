@@ -1,0 +1,62 @@
+name: build
+
+on:
+  push:
+    branches: ["*"]
+  workflow_dispatch:
+
+jobs:
+  module:
+    strategy:
+      matrix:
+        kmi:
+          - android16-6.12
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ylarod/ddk-min:${{ matrix.kmi }}-20260313
+      options: --privileged
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: build module
+      run: |
+        cd smc_monitor && make VERSION=${{ github.run_number }}
+        llvm-strip --strip-unneeded smc_monitor.ko
+
+    - name: build loader
+      run: |
+        apt-get update -qq && apt-get install -y -qq gcc-aarch64-linux-gnu libcap2-bin
+        aarch64-linux-gnu-gcc -DVERSION=${{ github.run_number }} -static -O2 -o loader/loader loader/loader.c
+        setcap cap_sys_module+eip loader/loader
+        llvm-strip --strip-all loader/loader
+
+    - name: build wrapper
+      run: |
+        aarch64-linux-gnu-gcc -static -O2 -o wrapper/init-wrapper wrapper/init-wrapper.c
+        llvm-strip --strip-all wrapper/init-wrapper
+
+    - name: upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: smc_monitor-${{ matrix.kmi }}-r${{ github.run_number }}
+        path: |
+          smc_monitor/smc_monitor.ko
+          loader/loader
+          wrapper/init-wrapper
+
+  smcpatch:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: build
+      run: |
+        cd smcpatch && cargo build --release
+        strip target/release/smcpatch
+
+    - name: upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: smcpatch-r${{ github.run_number }}
+        path: smcpatch/target/release/smcpatch
