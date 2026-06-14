@@ -5,10 +5,16 @@ with init_boot injection tooling.
 
 ## Components
 
-smc_monitor.ko   kprobe on __arm_smccc_smc, captures function IDs
-smcpatch         inject .ko into init_boot ramdisk
-init-wrapper     chain-loader, loads module before real init
-loader           userspace CLI: insmod / rmmod / status
+**Kernel**
+`smc_monitor.ko` — kprobe on __arm_smccc_smc. Captures all SMC function IDs.
+Detects and logs the anti-rollback call (function_id `0x4200011e`).
+
+**Inject**
+`smcpatch` — patches init_boot ramdisk, injects .ko files. KSU-compatible.
+`init-wrapper` — placed as /init. Loads module, then chains to real init.
+
+**Userspace**
+`loader` — CLI for insmod, rmmod, and status on the target device.
 
 ## Build
 
