@@ -4,7 +4,6 @@
 #include <linux/module.h>
 #include <linux/kprobes.h>
 #include <linux/printk.h>
-#include <linux/string.h>
 #include <linux/atomic.h>
 #include <linux/moduleparam.h>
 
@@ -15,8 +14,6 @@ typedef void (*unreg_kp_fn)(struct kprobe *);
 static kln_fn my_kallsyms_lookup_name;
 static reg_kp_fn my_register_kprobe;
 static unreg_kp_fn my_unregister_kprobe;
-
-static unsigned long kern_base;
 
 enum {
     SMC_UPDATE_ROLLBACK = 0x4200011e,
@@ -33,38 +30,9 @@ static kln_fn get_kallsyms_by_kprobe(void)
     return fn;
 }
 
-static void *sprint_lookup_gap_safe(const char *target)
-{
-    char buf[256];
-    unsigned long addr = (unsigned long)&sprintf;
-
-    for (int i = 0; i < 100000; i++) {
-        sprintf(buf, "%pSb", (void *)addr);
-        if (strstr(buf, target))
-            return (void *)addr;
-
-        char *p = strrchr(buf, '+');
-        if (p) {
-            unsigned long off;
-            sscanf(p + 1, "%lx/%*lx", &off);
-            addr = (addr - off) - 1;
-        } else {
-            addr -= 4;
-        }
-        if (addr < kern_base)
-            break;
-    }
-    return NULL;
-}
-
 static int resolve_kallsyms(void)
 {
     my_kallsyms_lookup_name = get_kallsyms_by_kprobe();
-    if (!my_kallsyms_lookup_name) {
-        pr_warn("smc_monitor: kprobe failed, falling back to %%pSb\n");
-        my_kallsyms_lookup_name = sprint_lookup_gap_safe(
-            "kallsyms_lookup_name");
-    }
     if (!my_kallsyms_lookup_name) {
         pr_err("smc_monitor: kallsyms_lookup_name not found\n");
         return -ENOENT;
@@ -135,8 +103,6 @@ static void dump_fns(void)
 
 static int __init smc_monitor_init(void)
 {
-    kern_base = (unsigned long)&sprintf & 0xffffffffff000000ull;
-
     int ret = resolve_kallsyms();
     if (ret)
         return ret;
